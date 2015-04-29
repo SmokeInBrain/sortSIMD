@@ -432,7 +432,7 @@ int main (int argc, char **argv){
 
 	//printf("Hizo la parte SIMD\n");
 
-	float *finalArray;
+	//float *finalArray;
  	finalArray = kWayMergeBruteForce(bufferGeneral, variables.numElements/16);
  	printArray(finalArray, variables.numElements, variables.debug, variables.output);
 
