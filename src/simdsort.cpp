@@ -15,6 +15,7 @@
 #include <climits>
 #include <float.h>
 #include <cmath>
+#include "../include/minheap.h"
 
 typedef struct Variables
 {
@@ -344,23 +345,8 @@ float *kWayMergeBruteForce(float **entrada, int numList){
 		}
 		indices[ indice_minimo ]++;
 		
-		//printf("%d ", valor_minimo);
 		returnedArray[j] = valor_minimo;
-		// for (int i = 0; i < numList; ++i) {
-		// 	indices[ i ]++;
-		// }
-
-		/*
-		termino = true;
-		for (i = 0; i < numList; ++i)
-		{
-			if(indices[ i ] < 16) {
-				termino = false;
-			}
-		}
-		*/
 		j++;
-		// getchar();
 	}
 	return returnedArray;
 }
@@ -377,12 +363,14 @@ void printArray(float *finalArray, int numElements, int debug, char *output){
 		}
 		close(fd);
 	}else{
-		int i;
+		int i;	
+		int suma=0;
 		for (i = 0; i < numElements; ++i)
 		{
-
+			suma = suma + 1;
 			printf("%f\n", finalArray[i]);
 		}
+		printf("Total: %d\n", suma);
 	}
 	free(finalArray);
 }
@@ -390,7 +378,8 @@ void printArray(float *finalArray, int numElements, int debug, char *output){
 int main (int argc, char **argv){
 	Var variables;
 	variables = Getoptions(argc, argv);
-	int numth = (int)pow(2, variables.level);
+	int level = variables.level;
+	int numth = (int)pow(2, level);
 	int i,n, mytid, numths;
 	float **bufferGeneral = (float **)malloc((variables.numElements/16)*sizeof(float *));
 	for (i = 0; i < variables.numElements/16; i++) {
@@ -412,29 +401,66 @@ int main (int argc, char **argv){
   	}
 
  	close(fd1);
+ 	
+ 	float **finalArrayParallel = (float **)malloc((numth)*sizeof(float*));
 
+ 	int numero_de_elementos;
  	omp_set_num_threads(numth);
- 	#pragma omp parallel private(mytid, numths, i, n)
+ 	#pragma omp parallel private(mytid, numths, n)
  	{
  		int j;
  		mytid = omp_get_thread_num();
  		numths = omp_get_num_threads();
  		n = (variables.numElements/16)/numths;
- 		i = mytid*n;
- 		//printf("mytid: %d=%d\n",mytid,i);
- 		#pragma omp for schedule(dynamic, n)
+ 		int menor = INT_MAX;
+ 		int mayor = 0;
+ 		#pragma omp for schedule(static, n)
  		for(j=0;j<variables.numElements/16;j++){
- 			//printf("mytid: %d = j: %d\n",mytid,j);
  	   		bufferGeneral[j] = SIMDSort(bufferGeneral[j]);
+ 	   		if( j < menor){
+ 	   			menor = j;
+ 	   		}
+ 	   		if( mayor < j){
+ 	   			mayor = j;
+ 	   		}
  		}
+
+
+ 		numero_de_elementos = mayor - menor + 1;
+		finalArrayParallel[mytid] = mergeKArrays(bufferGeneral + menor, numero_de_elementos, 16);
+ 	}//FIN PARALELIZACIÓN 1
+
+ 	int numthnew = numth/2;
+ 	level--;
+ 	while(level!=0 && numthnew!=1){
+ 		omp_set_num_threads(numthnew);
+ 		#pragma omp parallel private(mytid, numths, n)
+ 		{
+ 			mytid = omp_get_thread_num();
+ 			numths = omp_get_num_threads();
+ 			int elementsmenores = (variables.numElements/numths)*mytid;
+ 			int elementsmayores = (variables.numElements/numths)*mytid + (variables.numElements/numths)  - 1;
+ 			int numero_de_elementos = elementsmayores - elementsmenores +1;
+ 			printf("Nivel: %d, numero hebras: %d con menor=%d y mayor = %d, total = %d\n", level, numths, elementsmenores, elementsmayores, numero_de_elementos);
+ 		}
+ 		level--;
+ 		numthnew = numthnew/2;
  	}
 
+ 	//float *finalArray = (float*)malloc((variables.numElements)*sizeof(float));
+ 
+ 	//finalArray = mergeKArrays(finalArrayParallel, numth, variables.numElements/numth);
 
-	//printf("Hizo la parte SIMD\n");
+	//printArray(finalArray, variables.numElements, variables.debug, variables.output);
 
-	//float *finalArray;
- 	finalArray = kWayMergeBruteForce(bufferGeneral, variables.numElements/16);
- 	printArray(finalArray, variables.numElements, variables.debug, variables.output);
+	//printArray(finalArrayParallel[3], variables.numElements/numth,variables.debug, variables.output);
+	//printf("Numero hebras iniciales: %d\n", numth);
+
+ 	
+
+
+	
+
 
 
 	return 0;
